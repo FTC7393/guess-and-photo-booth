@@ -1,0 +1,789 @@
+<!doctype html>
+<html>
+
+<head>
+    <title>Guess</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            /* box-sizing: border-box; */
+            /* border: 1px solid red; */
+        }
+
+        body {
+            /* background-color: #ccc; */
+        }
+
+        h1 {
+            font-size: 6em;
+            display: inline;
+        }
+
+        h2 {
+            font-size: 3.5em;
+            display: inline;
+        }
+
+        h3 {
+            font-size: 2.5em;
+            display: inline;
+        }
+
+        button {
+            font-size: 4em;
+            padding: 0.2em;
+            /* height: 5em; */
+            background-color: #10ee10;
+            /* text-align: center; */
+            /* margin: auto; */
+            border-radius: 0.3em;
+            border: 0.1em solid black;
+            /* display: inline-block; */
+            /* align-self: center; */
+            margin: 0.1em;
+            /* margin-left:auto; margin-right:0; */
+            /* margin-right: 0; */
+        }
+
+        .white {
+            background-color: white;
+        }
+
+        .gray,
+        button:disabled,
+        button[disabled] {
+            background-color: #888;
+        }
+
+        input,
+        select {
+            font-size: 3.5em;
+            /* width: 90%; */
+            border-radius: 0.3em;
+            border: 0.1em solid black;
+            margin: 0.1em;
+            padding: 0.2em;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app">
+        <div v-if="admin_mode" style="padding: 1em">
+            <h1>Admin</h1><br />
+            <img src="/static/amogus-jar.jpeg" style="width: 300px"><br />
+            <h2>correct number:</h2><br />
+            <input :type="admin_visible_status" v-model="correct_number" style="width: 7em"><button
+                @click="admin_toggle_visible">👁</button><br />
+            <button @click="admin_save" :disabled="correct_number === correct_number_saved">Save</button>
+            <button @click="leave_admin_mode">Logout</button>
+        </div>
+        <div :style="{ padding: '1em', display: !admin_mode ? 'flex' : 'none' }">
+            <div style="width: 40%">
+                <h1>How Many Among Us In The Jar?</h1><br />
+                <!-- <span style="position: absolute; bottom: 0; left: 0">camera_state: [[ camera_state ]]</span> -->
+                <!-- <img src="/static/amogus-jar.jpeg" style="height: 400px"><br /> -->
+                <span v-if="team_number_entered === 0">
+                    <br /> <br />
+                    <br /> <br />
+                    <h2>Enter your team #:</h2><br />
+                    <select type="text" v-model="team_type" style="width: 5em">
+                        <option v-for="t in team_types">[[ t ]]</option>
+                    </select>
+                    <h2>#</h2><input type="text" v-model="team_number" id="team_number_elem"
+                        v-on:keyup.enter="save_team_number" style="width: 3.5em"><br />
+                    <button @click="save_team_number">Next</button>
+                </span>
+                <span v-else-if="team_number_entered === 1">
+
+                    <br /> <br />
+                    <br /> <br />
+                    <h2>How many people on your team?</h2><br />
+                    </h2><input type="text" v-model="num_team_members" id="num_team_members_elem"
+                        v-on:keyup.enter="save_team_members" style="width: 3.5em"><br />
+                    <button @click="save_team_members">Next</button>
+                </span>
+                <span v-else-if="team_number_entered === 2">
+                    <h2>You: [[ team_type ]] #[[ team_number ]]</h2>
+                    <button @click="discard_team_number"
+                        :disabled="['ask', 'pre-save', 'save', 'sending', 'sending success', 'sending failed'].includes(camera_state)">Back</button><br /><br />
+                    <h3>Guesses left: [[ guesses_left ]]</h3><br /><br />
+                    <span v-if="guess_correct === undefined">
+                        <h2>Make a guess:</h2><input type="number" v-model="guess" id="guess_elem"
+                            v-on:keyup.enter="make_guess" style="width: 6.35em">
+                        <button @click="make_guess" :disabled="guesses_left === 0">Guess!</button>
+                        [[pressure]]
+                    </span>
+                    <span v-else-if="guess_correct === 'correct'">
+                        <h3>Your guess of <span style="background-color: lightgreen;">[[ guess ]]</span> was EXACTLY
+                            correct!
+                            Congratulations!</h3>
+                    </span>
+                    <span v-else-if="guess_correct === 'off_1'">
+                        <h3>Your guess of <span style="background-color: yellowgreen;">[[ guess ]]</span> was within [[
+                            off_percent ]]%</h3>
+                    </span>
+                    <span v-else-if="guess_correct === 'off_2'">
+                        <h3>Your guess of <span style="background-color: yellow;">[[ guess ]]</span> was within [[
+                            off_percent ]]%</h3>
+                    </span>
+                    <span v-else>
+                        <h3>Your guess of <span style="background-color: lightcoral;">[[ guess ]]</span> was incorrect.
+                            :[ Better luck next time.</h3><br />
+                        <button @click="try_again">Try Again</button>
+                    </span>
+                </span>
+            </div>
+            <div style="width:60%">
+                <!-- <video id="video" style="width: 80%; display: none; margin: 0 auto" playsinline autoplay
+                    onclick="countdown(5)"></video> -->
+                <div :style="{ display: display_if_camera_states(['feed', 'countdown']) }">
+                    <h1>Photo Booth</h1> &nbsp;
+                    <h1 v-if="camera_state === 'countdown'"
+                        style="background-color: rgba(144, 238, 144, 0.6); position: absolute; font-size: 52em; left: 0">
+                        [[ countdown_number ]]
+                    </h1>
+                    <button v-else @click="countdown(5)">Take Photo</button>
+                    <video id="video" autoplay style="width: 100%"></video>
+                </div>
+                <!-- <canvas id="canvasElement" style="display: none;"></canvas>
+                <img id="photoElement" style="display: none;"> -->
+                <div :style="{ display: display_if_camera_states(['team info', 'draw']) }">
+                    <h1>Draw/Sign</h1> &nbsp;
+                    <h2 v-if="camera_state === 'team info'"
+                        style="background-color: rgba(0, 0, 0, 0.6); color: lightcoral; position: absolute; top: 5em; right: 2.5em; width: 15em; padding: 0.3em; z-index: 1">
+                        enter your team number on the left to continue</h2>
+                    <button v-else @click="done_drawing">Done</button>
+                    <button @click="retake_photo" class="white">Retake</button>
+
+                    <!-- <div class="outsideWrapper"> -->
+                    <div style="width: 100%; position: relative; height:100%" id="canvas_div">
+                        <img id="photo2" style="width: 100%; position: absolute; z-index: -2;">
+                        <canvas id="canvas" style="width: 100%; position: absolute"></canvas>
+                    </div>
+                    <!-- </div> -->
+
+                    <button @click="pencil" style="margin: 0; padding: 0 0.1em; height: 1.2em"
+                        :class="{ white: active_tool !== 'pencil'}">✎</button>
+                    <button @click="eraser" style="margin: 0; padding: 0 0.1em; height: 1.2em"
+                        :class="{ white: active_tool !== 'eraser'}"><img src="static/eraser.svg"
+                            style="height: 0.8em"></button>
+                    <input type="color" id="favcolor" v-model="pencil_color" style="height: 1em">
+                    <input type="range" min="1" max="100" v-model="tool_size">
+                </div>
+                <div
+                    :style="{ display: display_if_camera_states(['ask', 'pre-save', 'save', 'sending', 'sending success', 'sending failed']) }">
+                    <span v-if="camera_state === 'ask'">
+                        <!-- <h2></h2> &nbsp; -->
+                        <button @click="send_to_us">Send to 7393</button>
+                        <button @click="back_to_drawing" class="white">Back</button>
+                        <button @click="dont_send_to_us" class="white">Delete Image</button>
+                    </span>
+                    <span v-else>
+                        <button v-if="camera_state === 'pre-save'" @click="send_to_you">Text it to yourself</button>
+                        <span v-else>
+                            <h2>Phone: </h2><input type="text" v-model="phone_number" id="phone_number_elem"
+                                style="width: 8.5em">
+                            <button v-if="camera_state === 'save'" @click="send_image">Send</button>
+                            <h3 v-else-if="camera_state === 'sending'">Sending...</h3>
+                            <h3 style="background-color: lightcoral;" v-else-if="camera_state === 'sending failed'">
+                                Failed!
+                            </h3>
+                            <h3 style="background-color: lightgreen;" v-else-if="camera_state === 'sending success'">
+                                Success!
+                            </h3>
+                        </span>
+                        <button v-if="camera_state === 'save' || camera_state === 'pre-save'" @click="skip_sending"
+                            class="white">Skip</button>
+                    </span>
+                    <img id="photo" style="width: 100%">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/socket.io-4.7.5/socket.io.js"></script>
+    <script src="/static/vue-3.4.21/vue.global.prod.js"></script>
+    <script src="/static/jsQR.js"></script>
+    <script src="/static/pressure.js"></script>
+
+    <script type="module">
+        const { createApp, ref } = Vue
+
+        createApp({
+            delimiters: ['[[', ']]'],
+            data() {
+                return {
+                    socket: undefined,
+                    camera_state: 'init', //'init', 'feed', 'countdown', 'team info', 'draw', 'ask', 'pre-save', 'save', 'sending', 'sending success', 'sending failed'
+                    admin_mode: false,
+                    admin_visible_status: 'password',
+                    correct_number: 0,
+                    correct_number_saved: 0,
+                    team_types: ['FLL Discover', 'FLL Explore', 'FLL Challenge', 'FTC', 'FRC', 'Other'],
+                    team_type: 'FTC',
+                    team_number: '',
+                    num_team_members: '',
+                    team_number_entered: 0, //0 = no, 1 = entered team number, 2 = entered team number and how many people on the team
+                    image_upload_url: undefined,
+                    phone_number: '',
+                    guesses_left: undefined,
+                    guess: '',
+                    guess_correct: undefined,
+                    off_percent: undefined,
+                    countdown_number: undefined,
+                    pos: { x: 0, y: 0 },
+                    ctx: undefined,
+                    active_tool: 'pencil',
+                    pencil_color: '#c0392b',
+                    tool_size: 10,
+                    pressure: 1,
+                }
+            },
+            methods: {
+                admin_get_correct_guess() {
+                    fetch('/get_correct_guess')
+                        .then(response => response.text())
+                        .then(data => {
+                            // console.log(data);
+                            this.correct_number_saved = parseInt(data);
+                            this.correct_number = this.correct_number_saved;
+                        })
+                        .catch(error => console.error('Error:', error));
+                },
+                admin_save() {
+                    fetch('/set_correct_guess', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ correct_guess: parseInt(this.correct_number) })
+                    })
+                        .then(response => response.text())
+                        .then(data => {
+                            console.log(data);
+                            this.correct_number_saved = data;
+                            console.log(this.correct_number, this.correct_number_saved);
+                        })
+                        .catch(error => console.error('Error:', error));
+                },
+                admin_toggle_visible() {
+                    if (this.admin_visible_status === 'password') {
+                        this.admin_visible_status = 'text';
+                    } else {
+                        this.admin_visible_status = 'password';
+                    }
+                },
+                leave_admin_mode() {
+                    this.admin_mode = false;
+                    this.admin_visible_status = 'password';
+                },
+                socket_connect() {
+                    console.log('socket connected');
+                    this.socket.emit('init', { 'channel': 'tmp' });
+                },
+                socket_error() {
+                    console.error('socket error');
+                },
+                socket_event(msg) {
+                    console.log('event:', msg);
+                    if (msg === 'sending_successful') {
+                        this.sending_successful();
+                    }
+                    if (msg === 'sending_failed') {
+                        this.sending_failed();
+                    }
+                    if (msg === 'reload') {
+                        console.log('reloading...');
+                        window.location.reload();
+                    }
+                },
+                connect_to_socket_chat() {
+                    this.socket = io();
+
+                    this.socket.on('connect', this.socket_connect);
+                    this.socket.on('connect_failed', this.socket_error);
+                    this.socket.on('disconnect', this.socket_error);
+
+                    this.socket.on('event', this.socket_event);
+                },
+                display_if_camera_states(expected_states) {
+                    return expected_states.includes(this.camera_state) ? 'initial' : 'none'
+                },
+                async start_camera() {
+                    try {
+                        // const constraints = { video: true };
+                        // const constraints = {
+                        //     video: {
+                        //         width: { ideal: 4096 },
+                        //         height: { ideal: 2160 }
+                        //     }
+                        // };
+                        const constraints = {
+                            video: {
+                                width: { ideal: 1920 },
+                                height: { ideal: 1080 },
+                                // frameRate: { ideal: 6, max: 24 },
+                            }
+                        };
+                        // const constraints = {
+                        //     video: {
+                        //         width: { ideal: 128 },
+                        //         height: { ideal: 72 },
+                        //         // frameRate: { ideal: 1, max: 1 },
+                        //     }
+                        // };
+
+                        video.srcObject = await navigator.mediaDevices.getUserMedia(constraints);
+
+
+                        // setInterval(() => {
+                        //     if (this.camera_state === 'feed' && !this.admin_mode) {
+                        //         this.check_for_admin_qr();
+                        //     }
+                        // }, 500);
+
+                        // startButton.disabled = true;
+                        // captureButton.disabled = false;
+                        this.camera_state = 'feed';
+
+                    } catch (error) {
+                        console.error('Error accessing webcam:', error);
+                    }
+                },
+                pencil() {
+                    this.active_tool = 'pencil';
+                },
+                eraser() {
+                    this.active_tool = 'eraser';
+                },
+                countdown(n) {
+                    this.countdown_number = n;
+                    this.camera_state = 'countdown';
+                    if (n <= 0) {
+                        this.countdown_number = undefined;
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        canvas.getContext('2d').drawImage(video, 0, 0);
+                        photo2.src = canvas.toDataURL('image/jpeg');
+                        canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+
+                        if (this.team_number_entered === 2) {
+                            this.draw_on_canvas();
+                        } else {
+                            this.camera_state = 'team info';
+                            team_number_elem.focus();
+                        }
+                    } else {
+                        setTimeout(() => { this.countdown(n - 1) }, 1000);
+                    }
+                    // this.check_for_admin_qr();
+                },
+                check_for_admin_qr() {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(video, 0, 0);
+
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+                    // console.log(imageData);
+                    const code = jsQR(imageData, canvas.width, canvas.height);
+                    if (code) {
+                        console.log("Found QR code", code, code.data);
+                        if (code.data.startsWith('admin:')) {
+
+                            fetch('/check_admin_password', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({ password: code.data })
+                            })
+                                .then(response => response.text())
+                                .then(data => {
+                                    console.log('/check_admin_password', data);
+                                    if (data === 'true') {
+                                        this.admin_visible_status = 'password';
+                                        this.admin_mode = true;
+                                    }
+                                })
+                                .catch(error => console.error('Error:', error));
+                            // const form = document.createElement('form');
+                            // form.setAttribute('method', 'POST');
+                            // form.setAttribute('action', '/admin');
+
+                            // const password = document.createElement('input');
+                            // password.setAttribute('type', 'text');
+                            // password.setAttribute('name', 'password');
+                            // password.setAttribute('value', code.data);
+                            // form.appendChild(password);
+
+                            // document.body.appendChild(form);
+                            // form.submit();
+                        }
+                    } else {
+                        // console.log("No QR code found");
+                    }
+                },
+                draw_on_canvas() {
+                    this.ctx = canvas.getContext('2d');
+                    canvas.addEventListener('mousemove', this.draw);
+                    canvas.addEventListener('mousedown', this.setPosition);
+                    canvas.addEventListener('mouseenter', this.setPosition);
+
+                    // canvas.addEventListener('pointermove', draw);
+                    // canvas.addEventListener('pointerdown', setPosition);
+                    // canvas.addEventListener('pointerenter', setPosition);
+
+                    // canvas.addEventListener('touchmove', draw);
+                    // canvas.addEventListener('touchstart', setPosition);
+
+                    Pressure.set('#canvas', {
+                        change: this.set_pressure
+                    });
+
+                    this.active_tool = 'pencil';
+                    this.tool_size = 10;
+                    this.pencil_color = '#c0392b';
+                    this.camera_state = 'draw';
+                },
+                set_pressure(p) {
+                    this.pressure = p;
+                },
+                stop_draw_on_canvas() {
+                    this.ctx = undefined;
+                    canvas.removeEventListener('mousemove', this.draw);
+                    canvas.removeEventListener('mousedown', this.setPosition);
+                    canvas.removeEventListener('mouseenter', this.setPosition);
+                },
+                setPosition(e) {
+                    //for canvas inside a div
+                    const rect = canvas.getBoundingClientRect(); // abs. size of element
+                    const scaleX = canvas.width / rect.width; // relationship bitmap vs. element for X
+                    const scaleY = canvas.height / rect.height; // relationship bitmap vs. element for Y
+                    this.pos.x = e.layerX * scaleX; //x position within the element.
+                    this.pos.y = e.layerY * scaleY;  //y position within the element.
+                    // console.log(this.pos.x, this.pos.y, e);
+
+                    //for canvas not inside a div
+                    // const rect = canvas.getBoundingClientRect(); // abs. size of element
+                    // const scaleX = canvas.width / rect.width; // relationship bitmap vs. element for X
+                    // const scaleY = canvas.height / rect.height; // relationship bitmap vs. element for Y
+                    // this.pos.x = (e.layerX - rect.left) * scaleX; //x position within the element.
+                    // this.pos.y = (e.layerY - rect.top) * scaleY;  //y position within the element.
+                    // console.log(this.pos.x, this.pos.y, e);
+
+                    // const rect = { left: 0, top: 0, width: canvas.width, height: canvas.height };
+                    // console.log(rect)
+                    // canvas_div DOMRect { x: 771.2000122070312, y: 145.6999969482422, width: 1132.800048828125, height: 0, top: 145.6999969482422, right: 1904.0000610351562, bottom: 145.6999969482422, left: 771.2000122070312 }
+                    // canvas     DOMRect { x: 771.2000122070312, y: 145.6999969482422, width: 1132.800048828125, height: 637.2000122070312, top: 145.6999969482422, right: 1904.0000610351562, bottom: 782.9000091552734, left: 771.2000122070312 }
+                },
+                draw(e) {
+                    // mouse left button must be pressed
+                    if (e.buttons !== 1) return;
+
+                    if (this.active_tool === 'pencil') {
+                        this.ctx.beginPath(); // begin
+
+                        this.ctx.lineWidth = this.tool_size * this.pressure;
+                        this.ctx.lineCap = 'round';
+                        this.ctx.strokeStyle = this.pencil_color;
+
+                        this.ctx.moveTo(this.pos.x, this.pos.y); // from
+                        this.setPosition(e);
+                        this.ctx.lineTo(this.pos.x, this.pos.y); // to
+
+                        this.ctx.stroke(); // draw it!
+                    } else {
+                        const start_x = this.pos.x;
+                        const start_y = this.pos.y;
+                        this.setPosition(e);
+                        const end_x = this.pos.x;
+                        const end_y = this.pos.y;
+
+                        const angle = Math.atan2(end_y - start_y, end_x - start_x);
+                        const distance = Math.sqrt((end_x - start_x) * (end_x - start_x) + (end_y - start_y) * (end_y - start_y))
+                        for (let r = 0; r <= distance; r += 1) {
+                            const eraser_size = this.tool_size * this.pressure * 4;
+                            this.ctx.clearRect(start_x + r * Math.cos(angle) - eraser_size / 2, start_y + r * Math.sin(angle) - eraser_size / 2, eraser_size, eraser_size);
+                        }
+                        // this.ctx.strokeStyle = '#ffffff'; //'rgba(0,0,0,0)';
+                    }
+                },
+                retake_photo() {
+                    this.stop_draw_on_canvas();
+                    this.camera_state = 'feed';
+                },
+                done_drawing() {
+                    this.stop_draw_on_canvas();
+                    const canvas2 = document.createElement('canvas');
+                    canvas2.width = canvas.width;
+                    canvas2.height = canvas.height;
+                    canvas2.getContext('2d').drawImage(photo2, 0, 0);
+                    canvas2.getContext('2d').drawImage(canvas, 0, 0);
+
+                    const photoDataUrl = canvas2.toDataURL('image/jpeg');
+                    photo.src = photoDataUrl;
+                    // console.log(photoDataUrl);
+                    this.camera_state = 'ask';
+                },
+                back_to_drawing() {
+                    photo.src = '';
+                    this.draw_on_canvas();
+                },
+                send_to_us() {
+                    this.upload_image(photo.src.replace(/^data:image\/jpeg;base64,/, ''));
+                    this.phone_number = '';
+                    this.camera_state = 'pre-save';
+                },
+                dont_send_to_us() {
+                    if (confirm('Photo will be deleted and you will not be able to recieve it, are you sure?')) {
+                        this.camera_state = 'feed';
+                    }
+                },
+                send_to_you() {
+                    this.camera_state = 'save';
+                    setTimeout(() => {
+                        phone_number_elem.focus();
+                    }, 100);
+                },
+                upload_image(imageData) {
+                    fetch('/upload', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ imageData: imageData, team: this.team })
+                    })
+                        .then(response => response.text())
+                        .then(data => {
+                            this.image_upload_url = data;
+                            this.send_image_discord();
+                            console.log(data);
+                        })
+                        .catch(error => console.error('Error:', error));
+                },
+                send_image_discord() {
+                    fetch('/send_discord', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ imageUrl: this.image_upload_url, team: this.team })
+                    })
+                        .then(response => response.text())
+                        .then(data => {
+                            console.log(data);
+                        })
+                        .catch(error => console.error('Error:', error));
+                },
+                send_image() {
+                    if (this.phone_number === undefined || this.phone_number === '') {
+                        alert('enter a phone number first');
+                        return;
+                    }
+                    fetch('/send', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ imageUrl: this.image_upload_url, number: this.phone_number })
+                    })
+                        .then(response => response.text())
+                        .then(data => {
+                            console.log(data);
+                        })
+                        .catch(error => console.error('Error:', error));
+                    this.camera_state = 'sending';
+                },
+                sending_successful() {
+                    this.image_upload_url = undefined;
+                    this.camera_state = 'sending success';
+                    setTimeout(() => {
+                        this.camera_state = 'feed';
+                    }, 2000);
+                },
+                sending_failed() {
+                    this.camera_state = 'sending failed';
+                    setTimeout(() => {
+                        this.camera_state = 'save';
+                    }, 2000);
+                },
+                skip_sending() {
+                    this.camera_state = 'feed';
+                },
+                save_team_number() {
+                    if (this.team_number === '') {
+                        return;
+                    }
+                    this.get_guesses_left();
+                    this.guess = '';
+                    this.guess_correct = undefined;
+                    // this.$nextTick(() => {
+                    //     this.$nextTick(() => {
+                    //         this.$nextTick(() => {
+
+                    fetch('/get_num_team_members', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ team: this.team })
+                    })
+                        .then(response => response.text())
+                        .then(data => {
+                            console.log(data);
+                            if (data === '') {
+                                setTimeout(() => {
+                                    num_team_members_elem.focus();
+                                }, 100);
+                                this.team_number_entered = 1;
+                            } else {
+                                this.num_team_members = data;
+
+                                setTimeout(() => {
+                                    guess_elem.focus();
+                                }, 100);
+
+                                if (this.camera_state === 'team info') {
+                                    this.draw_on_canvas();
+                                }
+                                this.team_number_entered = 2;
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                        });
+
+                    //         });
+                    //     });
+                    // });
+                },
+                save_team_members() {
+                    fetch('/set_num_team_members', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ team: this.team, num_team_members: parseInt(this.num_team_members) })
+                    })
+                        .then(response => response.text())
+                        .then(data => {
+                            console.log(data);
+
+
+                            fetch('/get_guesses_left?team=' + this.team)
+                                .then(response => response.text())
+                                .then(data => {
+                                    console.log(data);
+                                    this.guesses_left = parseInt(data);
+
+                                    setTimeout(() => {
+                                        guess_elem.focus();
+                                    }, 100);
+
+                                    if (this.camera_state === 'team info') {
+                                        this.draw_on_canvas();
+                                    }
+                                    this.team_number_entered = 2;
+                                })
+                                .catch(error => {
+                                    console.error('Error:', error);
+                                });
+
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                        });
+
+                },
+                discard_team_number() {
+                    this.team_type = 'FTC';
+                    this.team_number = '';
+                    this.num_team_members = '';
+                    this.team_number_entered = 0;
+                    this.stop_draw_on_canvas();
+                    if (this.camera_state === 'draw') {
+                        this.camera_state = 'team info';
+                    }
+
+                    setTimeout(() => {
+                        team_number_elem.focus();
+                    }, 100);
+                },
+                make_guess() {
+                    fetch('/make_guess', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ guess: this.guess, team: this.team })
+                    })
+                        .then(response => response.text())
+                        .then(data => {
+                            this.get_guesses_left();
+                            console.log(data);
+
+                            if (data === 'error: out of guesses') {
+                                alert('out of guesses');
+                            } else {
+                                this.guess_correct = data;
+                                if (this.guess_correct.startsWith('off')) {
+                                    [this.guess_correct, this.off_percent] = this.guess_correct.split(',');
+                                }
+
+                                if (this.guess_correct === 'correct') {
+                                } else if (this.guess_correct === 'off_1') {
+                                } else if (this.guess_correct === 'off_2') {
+                                } else if (this.guess_correct === 'wrong') {
+                                } else {
+                                }
+                            }
+                        })
+                        .catch(error => {
+                            this.get_guesses_left();
+                            console.error('Error:', error);
+                        });
+                },
+                try_again() {
+                    this.guess = '';
+                    this.guess_correct = undefined;
+                    setTimeout(() => {
+                        guess_elem.focus();
+                    }, 100);
+                },
+                get_guesses_left() {
+                    fetch('/get_guesses_left?team=' + this.team)
+                        .then(response => response.text())
+                        .then(data => {
+                            console.log(data);
+                            this.guesses_left = parseInt(data);
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                        });
+                }
+            },
+            mounted() {
+                team_number_elem.focus();
+                this.connect_to_socket_chat();
+                this.start_camera();
+                this.admin_get_correct_guess();
+            },
+            computed: {
+                team() {
+                    return this.team_type + ' ' + this.team_number;
+                },
+            },
+            watch: {
+                team(new_val, old_val) {
+
+                },
+            },
+        }).mount('#app')
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,10 @@
+flask
+flask-socketio
+jinja2
+python-dotenv
+slixmpp
+aiohttp
+phonenumbers
+discord.py
+requests
+pandas
